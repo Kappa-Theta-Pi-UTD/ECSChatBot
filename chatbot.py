@@ -33,16 +33,33 @@ def load_data():
     return documents
 
 def load_or_create_index(index_path="index2.json"):
-    if "index" not in st.session_state:
-        if os.path.exists(index_path):
-            st.session_state.index = GPTSimpleVectorIndex.load_from_disk(index_path)
-        else:
-            documents = load_data()
-            st.session_state.index = GPTSimpleVectorIndex(documents)
-            st.session_state.index.save_to_disk(index_path)
-    return st.session_state.index
+    try:
+        if "index" not in st.session_state:
+            if os.path.exists(index_path):
+                st.session_state.index = GPTSimpleVectorIndex.load_from_disk(index_path)
+            else:
+                documents = load_data()
+                st.session_state.index = GPTSimpleVectorIndex(documents)
+                st.session_state.index.save_to_disk(index_path)
+        return st.session_state.index
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
+        return None
+
 
 index = load_or_create_index()
+
+if index is not None:
+    question = st.text_input("Enter your question: ")
+    st.markdown("----")
+    response = index.query(question)
+    response = str(response)
+    st.write(str(response[1:]))
+
+    st.markdown("----")
+else:
+    st.warning("Index could not be loaded or created.")
+
 
 question = st.text_input("Enter your question: ")
 st.markdown("----")
