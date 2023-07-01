@@ -5,6 +5,7 @@ import numpy as np
 from llama_index import GPTSimpleVectorIndex, Document, SimpleDirectoryReader
 from llama_index.node_parser import SimpleNodeParser
 import os
+import openai
 
 # Set the OpenAI API key
 
@@ -22,7 +23,7 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 st.markdown("----")
 
 openaikey = st.text_input("Enter your openAI key: ")
-os.environ['OPENAI_API_KEY'] = openaikey
+openai.api_key = openaikey
 
 
 
