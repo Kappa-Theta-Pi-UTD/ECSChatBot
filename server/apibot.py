@@ -1,57 +1,71 @@
-from flask import Flask, request, jsonify
-from llama_index import GPTSimpleVectorIndex, SimpleDirectoryReader
+from llama_index import GPTVectorStoreIndex, SimpleDirectoryReader, LLMPredictor, PromptHelper, ServiceContext
+from llama_index import load_index_from_storage, StorageContext
+from llama_index.storage.storage_context import StorageContext
 from llama_index.node_parser import SimpleNodeParser
+from langchain import OpenAI
 import os
 import traceback
-import config
+import sys
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import openai
 
+
 app = Flask(__name__)
+CORS(app) 
 
-# Set the OpenAI API key
-openaikey = os.environ.get('OPENAI_API_KEY')
 
-def load_data():
-    parser = SimpleNodeParser()
-    documents = SimpleDirectoryReader('ecs').load_data()
-    documents = parser.get_nodes_from_documents(documents)
-    return documents
+os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
-def load_or_create_index(index_path="index2.json"):
-    try:
-        if os.path.exists(index_path):
-            index = GPTSimpleVectorIndex.load_from_disk(index_path)
-        else:
-            documents = load_data()
-            index = GPTSimpleVectorIndex(documents)
-            index.save_to_disk(index_path)
-        return index
-    except Exception as e:
-        print(f"Error during index loading or creation: {str(e)}")
-        traceback.print_exc()
-        return None
 
+def build_storage(data_dir):
+    llm_predictor = LLMPredictor(llm=OpenAI(temperature=0, model_name="gpt-3.5-turbo"))
+
+    max_input_size = 8000
+
+    num_output = 2000
+
+    max_chunk_overlap = 0
+
+    prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
+
+    documents = SimpleDirectoryReader('data').load_data()
+
+    service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
+
+    index = GPTVectorStoreIndex.from_documents(documents, service_context=service_context)
+    # service_context==service_context
+    index.storage_context.persist()
+
+    return index
+
+def read_from_storage(persist_dir):
+    print("here12")
+    storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
+    return load_index_from_storage(storage_context)
 
 
 @app.route('/query', methods=['POST'])
 def query():
-    try:
-        index = load_or_create_index()
-        data = request.get_json()
-        question = data.get('question')
+    persist_dir = "./storage"
+    data_dir = "./data"
+    index = None
+    print('here2')
+    if os.path.exists(persist_dir):
+        index = read_from_storage(persist_dir)
+    else:
+        index = build_storage(data_dir)
+        
 
-        if question is None:
-            return jsonify({'error': 'Invalid request. "question" parameter is missing.'}), 400
+    data = request.get_json()
+    question = data.get('question')
+    query_engine = index.as_query_engine()
+    response  = query_engine.query(question)
+    response = str(response)
 
-        response = index.query(question)
-        response = str(response)
-
-        return jsonify({'response': response[1:]})
-
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        traceback.print_exc()
-        return jsonify({'error': 'Internal Server Error'}), 500
+    return jsonify({'response': response})
 
 if __name__ == '__main__':
-    app.run()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
