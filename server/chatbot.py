@@ -7,7 +7,7 @@ from llama_index.node_parser import SimpleNodeParser
 import os
 import openai
 
-# Set the OpenAI API key
+# Set the Ope
 
 title = '<p style="font-family: Georgia; color:white; text-align: center; font-size: 50px;">ECS ChatBot</p>'
 st.markdown(title, unsafe_allow_html=True)
